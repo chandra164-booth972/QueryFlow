@@ -1,10 +1,11 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import Onboarding from './Onboarding';
 import Inbox from './Inbox';
 import Kanban from './Kanban';
-import { apiFetch } from '../lib/api';
+import { apiFetch, clearToken } from '../lib/api';
 import { Query } from '../lib/mockData';
 
 type View = 'inbox' | 'pipeline' | 'editors';
@@ -64,7 +65,15 @@ function apiQueryToFrontend(q: ApiQuery): Query {
   };
 }
 
+interface UserProfile {
+  id: string;
+  email: string;
+  name: string;
+  gmail_connected: boolean;
+}
+
 export default function QueryFlowApp() {
+  const router = useRouter();
   const [isOnboarded, setIsOnboarded] = useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('queryflow_onboarded') === 'true';
@@ -74,6 +83,7 @@ export default function QueryFlowApp() {
   const [currentView, setCurrentView] = useState<View>('inbox');
   const [queries, setQueries] = useState<Query[]>([]);
   const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<UserProfile | null>(null);
 
   const fetchQueries = useCallback(async () => {
     try {
@@ -87,12 +97,45 @@ export default function QueryFlowApp() {
   }, []);
 
   useEffect(() => {
+    apiFetch<UserProfile>('/auth/me').then(setUser).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('gmail_connected') === 'true') {
+      apiFetch<UserProfile>('/auth/me').then(setUser).catch(() => {});
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
+
+  useEffect(() => {
     if (isOnboarded) {
       fetchQueries();
     } else {
       setLoading(false);
     }
   }, [isOnboarded, fetchQueries]);
+
+  const handleSync = async () => {
+    await apiFetch('/gmail/sync', { method: 'POST' });
+    await new Promise(r => setTimeout(r, 2000));
+    await fetchQueries();
+  };
+
+  const handleConnectGmail = async () => {
+    const data = await apiFetch<{ auth_url: string }>('/gmail/connect');
+    window.location.href = data.auth_url;
+  };
+
+  const handleLogout = async () => {
+    try {
+      await apiFetch('/auth/logout', { method: 'POST' });
+    } catch {
+      // ignore — clear client state regardless
+    }
+    clearToken();
+    router.push('/signin');
+  };
 
   const handleUpdateQuery = async (updatedQuery: Query) => {
     setQueries(prev => prev.map(q => q.id === updatedQuery.id ? updatedQuery : q));
@@ -181,15 +224,38 @@ export default function QueryFlowApp() {
           </button>
         </nav>
 
+        {user && !user.gmail_connected && (
+          <div className="px-4 pb-3">
+            <button
+              onClick={handleConnectGmail}
+              className="w-full flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-sm hover:bg-amber-100 transition-colors"
+            >
+              <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
+              <span className="font-medium">Connect Gmail</span>
+            </button>
+          </div>
+        )}
+
         <div className="p-4 border-t border-stone-200">
           <div className="flex items-center gap-3 px-4 py-2">
-            <div className="w-8 h-8 rounded-full bg-stone-100 border border-stone-300 flex items-center justify-center text-sm font-medium text-stone-700">
-              AK
+            <div className="w-8 h-8 rounded-full bg-stone-100 border border-stone-300 flex items-center justify-center text-sm font-medium text-stone-700 shrink-0">
+              {user ? user.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() : '…'}
             </div>
-            <div>
-              <p className="text-sm font-medium text-stone-900">Amy Keene</p>
-              <p className="text-xs text-stone-500">Agency Owner</p>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-stone-900 truncate">{user?.name ?? '…'}</p>
+              <p className="text-xs text-stone-500 truncate">{user?.email ?? ''}</p>
             </div>
+            <button
+              onClick={handleLogout}
+              title="Log out"
+              className="shrink-0 p-1.5 rounded-lg text-stone-400 hover:text-stone-700 hover:bg-stone-100 transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+            </button>
           </div>
         </div>
       </div>
@@ -204,7 +270,7 @@ export default function QueryFlowApp() {
           </div>
         ) : (
           <>
-            {currentView === 'inbox' && <Inbox queries={queries} onUpdateQuery={handleUpdateQuery} />}
+            {currentView === 'inbox' && <Inbox queries={queries} onUpdateQuery={handleUpdateQuery} onSync={handleSync} />}
             {currentView === 'pipeline' && <Kanban queries={queries} onUpdateQuery={handleUpdateQuery} />}
             {currentView === 'editors' && (
               <div className="h-full flex items-center justify-center text-stone-400 flex-col">

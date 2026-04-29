@@ -100,3 +100,23 @@ async def gmail_callback(
     frontend_origin = CORS_ORIGINS[0] if CORS_ORIGINS else "http://localhost:3000"
     redirect_url = f"{frontend_origin}/?gmail_connected=true&queries_found={queries_found}"
     return RedirectResponse(url=redirect_url)
+
+
+@router.post("/sync")
+async def sync_gmail(
+    background_tasks: BackgroundTasks,
+    current_user: UserPublic = Depends(get_current_user),
+):
+    db = get_db()
+    from bson import ObjectId
+    user_doc = await db.users.find_one({"_id": ObjectId(current_user.id)})
+    if not user_doc or not user_doc.get("gmail_connected"):
+        raise HTTPException(status_code=400, detail="Gmail not connected")
+
+    encrypted = user_doc.get("gmail_refresh_token", "")
+    refresh_token = decrypt_token(encrypted)
+    if not refresh_token:
+        raise HTTPException(status_code=400, detail="No Gmail refresh token stored")
+
+    background_tasks.add_task(_run_ingestion, current_user.id, "", refresh_token)
+    return {"message": "Sync started"}

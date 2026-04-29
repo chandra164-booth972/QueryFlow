@@ -7,11 +7,13 @@ import { apiFetch } from '../lib/api';
 interface InboxProps {
   queries: Query[];
   onUpdateQuery: (updatedQuery: Query) => void;
+  onSync?: () => Promise<void>;
 }
 
-export default function Inbox({ queries, onUpdateQuery }: InboxProps) {
+export default function Inbox({ queries, onUpdateQuery, onSync }: InboxProps) {
   const [selectedQueryId, setSelectedQueryId] = useState<string | null>(queries[0]?.id || null);
   const [isEditingMetadata, setIsEditingMetadata] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const genreRef = useRef<HTMLInputElement>(null);
   const wordCountRef = useRef<HTMLInputElement>(null);
 
@@ -54,9 +56,26 @@ export default function Inbox({ queries, onUpdateQuery }: InboxProps) {
       <div className="w-1/3 border-r border-stone-200 flex flex-col bg-white/60 backdrop-blur-md">
         <div className="p-4 border-b border-stone-200 flex justify-between items-center">
           <h2 className="text-lg font-semibold text-stone-900 font-serif">Inbox</h2>
-          <span className="bg-indigo-50 text-indigo-800 text-xs px-2 py-1 rounded-full border border-indigo-100">
-            {inboxQueries.length} Unread
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="bg-indigo-50 text-indigo-800 text-xs px-2 py-1 rounded-full border border-indigo-100">
+              {inboxQueries.length} Unread
+            </span>
+            {onSync && (
+              <button
+                onClick={async () => {
+                  setSyncing(true);
+                  try { await onSync(); } finally { setSyncing(false); }
+                }}
+                disabled={syncing}
+                title="Sync Gmail"
+                className="p-1.5 rounded-lg text-stone-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors disabled:opacity-50"
+              >
+                <svg className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              </button>
+            )}
+          </div>
         </div>
         
         <div className="flex-1 overflow-y-auto">

@@ -14,14 +14,14 @@ _QUERY_SUBJECT_PATTERN = re.compile(r"\bquery\b", re.IGNORECASE)
 
 def _build_service(access_token: str, refresh_token: str):
     creds = Credentials(
-        token=access_token,
+        token=access_token or None,
         refresh_token=refresh_token,
         token_uri="https://oauth2.googleapis.com/token",
         client_id=GOOGLE_CLIENT_ID,
         client_secret=GOOGLE_CLIENT_SECRET,
         scopes=SCOPES,
     )
-    if creds.expired and creds.refresh_token:
+    if not access_token or creds.expired:
         creds.refresh(Request())
     return build("gmail", "v1", credentials=creds, cache_discovery=False)
 
