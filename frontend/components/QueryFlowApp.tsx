@@ -74,12 +74,8 @@ interface UserProfile {
 
 export default function QueryFlowApp() {
   const router = useRouter();
-  const [isOnboarded, setIsOnboarded] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('queryflow_onboarded') === 'true';
-    }
-    return false;
-  });
+  const [mounted, setMounted] = useState(false);
+  const [isOnboarded, setIsOnboarded] = useState(false);
   const [currentView, setCurrentView] = useState<View>('inbox');
   const [queries, setQueries] = useState<Query[]>([]);
   const [loading, setLoading] = useState(true);
@@ -94,6 +90,11 @@ export default function QueryFlowApp() {
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  useEffect(() => {
+    setIsOnboarded(localStorage.getItem('queryflow_onboarded') === 'true');
+    setMounted(true);
   }, []);
 
   useEffect(() => {
@@ -154,6 +155,8 @@ export default function QueryFlowApp() {
     localStorage.setItem('queryflow_onboarded', 'true');
     setIsOnboarded(true);
   };
+
+  if (!mounted) return null;
 
   if (!isOnboarded) {
     return <Onboarding onComplete={handleComplete} />;
