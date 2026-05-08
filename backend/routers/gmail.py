@@ -3,7 +3,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from google_auth_oauthlib.flow import Flow
-from config import GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI, CORS_ORIGINS
+from config import GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI, FRONTEND_URL
 from dependencies import get_current_user
 from models.user import UserPublic
 from db import get_db
@@ -97,8 +97,7 @@ async def gmail_callback(
 
     background_tasks.add_task(_run_ingestion, state, access_token, refresh_token)
 
-    frontend_origin = CORS_ORIGINS[0] if CORS_ORIGINS else "http://localhost:3000"
-    redirect_url = f"{frontend_origin}/?gmail_connected=true&queries_found={queries_found}"
+    redirect_url = f"{FRONTEND_URL}/app?gmail_connected=true&queries_found={queries_found}"
     return RedirectResponse(url=redirect_url)
 
 
