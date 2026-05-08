@@ -30,7 +30,8 @@ export async function apiFetch<T>(
   const data = await res.json();
 
   if (!res.ok) {
-    throw new Error((data as { error?: string }).error ?? `HTTP ${res.status}`);
+    const d = data as { error?: string; detail?: string };
+    throw new Error(d.error ?? d.detail ?? `HTTP ${res.status}`);
   }
 
   return data as T;
